@@ -10,6 +10,12 @@
                 parentId="tools"
                 key="mypy.configuration.name"
                 bundle="messages.MypyBundle"/>
+        <projectConfigurable
+                id="works.szabope.plugins.mypy.configurable.MypyModuleConfigurable"
+                instance="works.szabope.plugins.mypy.configurable.MypyModuleConfigurable"
+                parentId="works.szabope.plugins.mypy.configurable.MypyConfigurable"
+                key="mypy.configuration.module_settings.name"
+                bundle="messages.MypyBundle"/>
         <externalAnnotator language="Python" implementationClass="works.szabope.plugins.mypy.annotator.MypyAnnotator"/>
         <localInspection language="Python" level="ERROR" shortName="MypyInspection"
                          implementationClass="works.szabope.plugins.mypy.annotator.MypyInspection"

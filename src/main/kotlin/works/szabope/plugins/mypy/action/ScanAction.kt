@@ -17,7 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import works.szabope.plugins.mypy.services.AsyncScanService
-import works.szabope.plugins.mypy.services.MypySettings
+import works.szabope.plugins.mypy.services.MypyConfigurationResolver
 import works.szabope.plugins.mypy.services.parser.MypyMessageConverter
 import works.szabope.plugins.mypy.toolWindow.MypyToolWindowPanel
 import works.szabope.plugins.mypy.toolWindow.MypyTreeService
@@ -33,11 +33,15 @@ open class ScanAction : DumbAwareAction() {
         treeService.reinitialize(targets)
         WriteIntentReadAction.run { FileDocumentManager.getInstance().saveAllDocuments() }
         val job = currentThreadCoroutineScope().launch(Dispatchers.IO) {
-            val configuration = MypySettings.getInstance(project).getValidConfiguration().getOrNull() ?: return@launch
-            AsyncScanService.getInstance(project).scan(targets, configuration).forEach {
-                val mypyMessage = MypyMessageConverter.convert(it)
-                withContext(Dispatchers.EDT) {
-                    treeService.add(mypyMessage)
+            val resolver = MypyConfigurationResolver(project)
+            val configGroups = resolver.groupByConfiguration(targets)
+            if (configGroups.isEmpty()) return@launch
+            for ((configuration, groupTargets) in configGroups) {
+                AsyncScanService.getInstance(project).scan(groupTargets, configuration).forEach {
+                    val mypyMessage = MypyMessageConverter.convert(it)
+                    withContext(Dispatchers.EDT) {
+                        treeService.add(mypyMessage)
+                    }
                 }
             }
             treeService.lock()
@@ -60,8 +64,10 @@ open class ScanAction : DumbAwareAction() {
     }
 
     private fun isReadyToScan(project: Project, targets: Collection<VirtualFile>): Boolean {
-        return targets.isNotEmpty() && ScanJobRegistry.INSTANCE.isAvailable() && MypySettings.getInstance(project)
-            .getValidConfiguration().isSuccess && isEligibleTargets(targets)
+        return targets.isNotEmpty()
+            && ScanJobRegistry.INSTANCE.isAvailable()
+            && isEligibleTargets(targets)
+            && MypyConfigurationResolver(project).hasAnyValidConfiguration(targets)
     }
 
     private fun isEligibleTargets(targets: Collection<VirtualFile>) = targets.map { isEligible(it) }.all { it }
