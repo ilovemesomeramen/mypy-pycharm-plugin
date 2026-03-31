@@ -18,6 +18,7 @@ import works.szabope.plugins.mypy.services.parser.MypyParseException
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.deleteIfExists
+import kotlin.io.path.exists
 import kotlin.io.path.writeText
 
 @Service(Service.Level.PROJECT)
@@ -40,7 +41,9 @@ class SyncScanService(private val project: Project, private val cs: CoroutineSco
                     return@transform
                 }
                 MypyOutputParser.parse(line.text).onSuccess { message ->
-                    val virtualFile = targetsByPath[message.file] ?: VfsUtil.findFile(Path(message.file), false)
+                    val virtualFile = targetsByPath[message.file]
+                        ?: resolveRelativePath(message.file, configuration.workingDirectory, targetsByPath)
+                        ?: VfsUtil.findFile(Path(message.file), false)
                     virtualFile?.let {
                         emit(it to message)
                     } ?: thisLogger().warn("Can't find VirtualFile at ${message.file}")
@@ -70,6 +73,18 @@ class SyncScanService(private val project: Project, private val cs: CoroutineSco
                 acc
             }.mapValues { (_, v) -> v.toList() }
         }.get()
+    }
+
+    // mypy outputs paths relative to its working directory. Resolve against workingDirectory
+    // and match to the known target files so the annotator can find results.
+    private fun resolveRelativePath(
+        messagePath: String, workingDirectory: String?, targetsByPath: Map<String, VirtualFile>
+    ): VirtualFile? {
+        if (workingDirectory.isNullOrBlank()) return null
+        val resolved = Path(workingDirectory).resolve(messagePath)
+        if (!resolved.exists()) return null
+        val canonical = resolved.toRealPath().toString()
+        return targetsByPath[canonical] ?: VfsUtil.findFile(resolved, false)
     }
 
     private fun copyTempFrom(file: VirtualFile): Path {
