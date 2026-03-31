@@ -14,6 +14,9 @@ import works.szabope.plugins.mypy.AbstractToolWindowTestCase
 import works.szabope.plugins.mypy.MypyBundle
 import works.szabope.plugins.mypy.dialog.DialogManager
 import works.szabope.plugins.mypy.services.MypySettings
+import works.szabope.plugins.common.test.action.markExcluded
+import works.szabope.plugins.common.test.action.unmark
+import works.szabope.plugins.common.test.action.waitForIt
 import works.szabope.plugins.mypy.testutil.*
 import java.nio.file.Paths
 import kotlin.io.path.absolutePathString
@@ -52,7 +55,7 @@ class ScanSdkTest : AbstractToolWindowTestCase() {
         val context = dataContext(project) { add(CommonDataKeys.VIRTUAL_FILE_ARRAY, arrayOf(target)) }
         waitForIt(ScanAction.ID, context)
         scan(context)
-        PlatformTestUtil.waitWhileBusy { ScanJobRegistry.INSTANCE.isActive() }
+        PlatformTestUtil.waitWhileBusy { MypyScanJobRegistryService.getInstance(project).isActive() }
         assertionError?.let { throw it }
         runBlocking {
             waitUntilAssertSucceeds {

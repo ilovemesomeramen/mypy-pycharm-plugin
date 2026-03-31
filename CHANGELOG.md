@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-03-28
+
+- Changelog update - `v2.2.0` by @github-actions[bot] in https://github.com/szabope/mypy-pycharm-plugin/pull/162
+- Support Intellij 261 by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/164
+
+## [2.2.0] - 2026-03-10
+
+- Fix test race that only shows up on CI runner by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/154
+- Make depending on pycharm-plugin-base easier by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/153
+- Add missing permissions to build workflow by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/155
+- CodeQL workflow for IntelliJ plugin by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/156
+- Lift code to common base by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/159
+- pin workflow actions by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/160
+- Add support for IU 261 by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/161
+
+## [2.1.8] - 2025-12-13
+
+- Changelog update - `v2.1.7` by @github-actions[bot] in https://github.com/szabope/mypy-pycharm-plugin/pull/147
+- Handle mypy exit 2 by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/148
+
 ## [2.1.7] - 2025-12-12
 
 - Changelog update - `v2.1.6` by @github-actions[bot] in https://github.com/szabope/mypy-pycharm-plugin/pull/144
@@ -240,7 +260,10 @@ Fix Naming collisions with old plugin
      - Severity filters: **removed**
      - Rescan: **added** - runs mypy scan on the latest target(s)
 
-[Unreleased]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.1.7...HEAD
+[Unreleased]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.2.1...HEAD
+[2.2.1]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.2.0...v2.2.1
+[2.2.0]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.1.8...v2.2.0
+[2.1.8]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.1.7...v2.1.8
 [2.1.7]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.1.6...v2.1.7
 [2.1.6]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.1.5...v2.1.6
 [2.1.5]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.1.4...v2.1.5

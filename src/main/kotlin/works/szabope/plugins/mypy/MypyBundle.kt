@@ -9,14 +9,10 @@ private const val BUNDLE = "messages.MypyBundle"
 
 object MypyBundle {
 
-    private val bundle = DynamicBundle(MypyBundle.javaClass, BUNDLE)
+    private val bundle = DynamicBundle(MypyBundle::class.java, BUNDLE)
 
     @JvmStatic
     fun message(@PropertyKey(resourceBundle = BUNDLE) key: String, vararg params: Any) =
         bundle.getMessage(key, *params)
 
-    @Suppress("unused")
-    @JvmStatic
-    fun messagePointer(@PropertyKey(resourceBundle = BUNDLE) key: String, vararg params: Any) =
-        bundle.getLazyMessage(key, *params)
 }

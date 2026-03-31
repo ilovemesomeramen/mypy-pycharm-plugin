@@ -24,25 +24,22 @@ class MypyIgnoreIntention(private val issue: MypyMessage) : PsiElementBaseIntent
         val COMMENT_REGEX = "^#\\s+type:\\s+ignore(\\[(?<codes>[a-zA-Z\\s,-]+)])?".toRegex()
     }
 
-    override fun getText(): String {
-        return MypyBundle.message("mypy.intention.ignore.text", issue.code)
-    }
+    override fun getText(): String = MypyBundle.message("mypy.intention.ignore.text", issue.code)
 
-    override fun getFamilyName(): String {
-        return MypyBundle.message("mypy.intention.ignore.family_name")
-    }
+    override fun getFamilyName(): String = MypyBundle.message("mypy.intention.ignore.family_name")
 
-    override fun isAvailable(project: Project, editor: Editor?, element: PsiElement): Boolean {
-        return !isTripleQuotedMultilineString(element)
-    }
+    override fun isAvailable(project: Project, editor: Editor?, element: PsiElement): Boolean =
+        !isTripleQuotedMultilineString(element)
 
     override fun invoke(project: Project, editor: Editor?, element: PsiElement) {
         val existingComment = PyPsiUtils.findSameLineComment(element)
         val existingMypyIgnoreComment = existingComment?.text?.let { COMMENT_REGEX.find(it) }
         val existingCodes = existingMypyIgnoreComment?.groups["codes"]?.value
         val comment = if (existingCodes != null) {
+            // append to existing code list: `# type: ignore[existing,code]`
             existingMypyIgnoreComment.value.replace(existingCodes, "$existingCodes,${issue.code}")
-        } else { // (existingMypyIgnoreComment != null) { IMPOSSIBLE, we cannot end up here with `#  type: ignore`
+        } else {
+            // no ignore comment, or bare `# type: ignore` without brackets — write fresh
             "# type: ignore[${issue.code}]"
         }
         existingMypyIgnoreComment?.run {

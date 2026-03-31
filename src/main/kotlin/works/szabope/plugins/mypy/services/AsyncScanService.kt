@@ -6,24 +6,24 @@ import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import kotlinx.coroutines.flow.*
-import works.szabope.plugins.common.services.ImmutableSettingsData
+import works.szabope.plugins.common.services.ToolExecutorConfiguration
+import works.szabope.plugins.common.services.showClickableBalloonError
 import works.szabope.plugins.mypy.MypyBundle
 import works.szabope.plugins.mypy.dialog.DialogManager
 import works.szabope.plugins.mypy.services.parser.MypyMessage
 import works.szabope.plugins.mypy.services.parser.MypyOutputParser
 import works.szabope.plugins.mypy.services.parser.MypyParseException
+import works.szabope.plugins.mypy.toolWindow.MypyToolWindowPanel
 
 @Service(Service.Level.PROJECT)
 class AsyncScanService(private val project: Project) {
 
-    suspend fun scan(targets: Collection<VirtualFile>, configuration: ImmutableSettingsData): List<MypyMessage> {
-        // Why? See MypyParseException
-        // So let's collect parse failures and report them.
-        // If you have a better idea, please let me know.
-        val unparsableLinesOfStdout = StringBuilder()
+    suspend fun scan(targets: Collection<VirtualFile>, configuration: ToolExecutorConfiguration): List<MypyMessage> {
+        val nonJsonStdout = StringBuilder()
         val parameters = with(project) { buildMypyParamList(configuration, targets) }
         val stdErr = StringBuilder()
-        return MypyExecutor(project).execute(configuration, parameters).filter { it.text.isNotBlank() }
+        val executor = MypyExecutor(project)
+        return executor.execute(configuration, parameters).filter { it.text.isNotBlank() }
             .transform { line ->
                 if (line.isError) {
                     stdErr.append(line.text)
@@ -32,7 +32,8 @@ class AsyncScanService(private val project: Project) {
                 MypyOutputParser.parse(line.text).onSuccess { emit(it) }.onFailure {
                     when (it) {
                         is MypyParseException -> {
-                            unparsableLinesOfStdout.appendLine("${it.sourceJson} failed with ${it.message}")
+                            // mypy sometimes ignores -O json for certain errors; collect the raw lines as-is
+                            nonJsonStdout.appendLine(it.sourceJson)
                         }
 
                         else -> {
@@ -41,17 +42,19 @@ class AsyncScanService(private val project: Project) {
                     }
                 }
             }.onCompletion {
-                if (unparsableLinesOfStdout.isNotEmpty()) {
-                    showClickableBalloonError(project, MypyBundle.message("mypy.toolwindow.balloon.parse_error")) {
-                        DialogManager.showToolOutputParseErrorDialog(
-                            configuration,
-                            targets.joinToString("\n"),
-                            unparsableLinesOfStdout.toString(),
-                            ""
-                        )
+                val output = buildString {
+                    if (stdErr.isNotEmpty()) append(stdErr)
+                    if (nonJsonStdout.isNotEmpty()) {
+                        if (stdErr.isNotEmpty()) appendLine()
+                        append(nonJsonStdout)
                     }
                 }
-            }.catch(handleScanException(project, configuration, stdErr)).toList(ArrayList())
+                if (output.isNotEmpty()) {
+                    showClickableBalloonError(project, MypyToolWindowPanel.ID, MypyBundle.message("mypy.toolwindow.balloon.external_error")) {
+                        DialogManager.showToolExecutionErrorDialog(executor.commandLine ?: "", output, executor.exitCode)
+                    }
+                }
+            }.catch(handleScanException(project, { executor.commandLine }, stdErr, MypyIncompleteConfigurationNotifier.getInstance(project))).toList(ArrayList())
     }
 
     companion object {

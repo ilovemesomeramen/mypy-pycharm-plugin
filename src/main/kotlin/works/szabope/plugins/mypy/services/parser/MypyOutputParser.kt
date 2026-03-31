@@ -35,15 +35,8 @@ object MypyOutputParser {
      *   from mypy: 1-based
      *   to intellij: 0-based
      */
-    private fun adjustForPlatform(message: MypyMessage): MypyMessage {
-        return message.copy(
-            file = message.file,
-            line = message.line - 1,
-            column = message.column,
-            message = message.message,
-            hint = message.hint,
-            code = message.code,
-            severity = message.severity.uppercase()
-        )
-    }
+    private fun adjustForPlatform(message: MypyMessage): MypyMessage = message.copy(
+        line = message.line - 1,
+        severity = message.severity.uppercase()
+    )
 }

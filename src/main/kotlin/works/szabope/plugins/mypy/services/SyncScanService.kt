@@ -1,6 +1,5 @@
 package works.szabope.plugins.mypy.services
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.thisLogger
@@ -8,11 +7,10 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.openapi.vfs.ex.temp.TempFileSystem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.future.future
-import works.szabope.plugins.common.services.ImmutableSettingsData
+import works.szabope.plugins.common.services.ToolExecutorConfiguration
 import works.szabope.plugins.mypy.MypyBundle
 import works.szabope.plugins.mypy.services.parser.MypyMessage
 import works.szabope.plugins.mypy.services.parser.MypyOutputParser
@@ -26,28 +24,31 @@ import kotlin.io.path.writeText
 class SyncScanService(private val project: Project, private val cs: CoroutineScope) {
 
     fun scan(
-        targets: Collection<VirtualFile>, configuration: ImmutableSettingsData
+        targets: Collection<VirtualFile>, configuration: ToolExecutorConfiguration
     ): Map<VirtualFile, List<MypyMessage>> {
         val shadowedTargetMap = targets.associateWith {
             copyTempFrom(it)
         }
+        val targetsByPath = targets.associateBy { it.canonicalPath ?: it.path }
         val parameters = with(project) { buildMypyParamList(configuration, shadowedTargetMap) }
         val stdErr = StringBuilder()
+        val executor = MypyExecutor(project)
         val flow: Flow<Pair<VirtualFile, MypyMessage>> =
-            MypyExecutor(project).execute(configuration, parameters).filter { it.text.isNotBlank() }.transform { line ->
+            executor.execute(configuration, parameters).filter { it.text.isNotBlank() }.transform { line ->
                 if (line.isError) {
                     stdErr.append(line.text)
                     return@transform
                 }
                 MypyOutputParser.parse(line.text).onSuccess { message ->
-                    findFile(Path(message.file))?.let { virtualFile ->
-                        emit(virtualFile to message)
+                    val virtualFile = targetsByPath[message.file] ?: VfsUtil.findFile(Path(message.file), false)
+                    virtualFile?.let {
+                        emit(it to message)
                     } ?: thisLogger().warn("Can't find VirtualFile at ${message.file}")
                 }.onFailure {
                     when (it) {
                         is MypyParseException -> {
                             thisLogger().warn(
-                                MypyBundle.message("mypy.executable.parsing-result-failed", configuration), it
+                                MypyBundle.message("mypy.executable.parsing-result-failed", executor.commandLine ?: ""), it
                             )
                         }
 
@@ -58,23 +59,17 @@ class SyncScanService(private val project: Project, private val cs: CoroutineSco
                 }
             }.onCompletion {
                 // cleanup
-                shadowedTargetMap.values.onEach { shadowFile -> shadowFile.deleteIfExists() }
-            }.catch(handleScanException(project, configuration, stdErr))
+                shadowedTargetMap.values.forEach { shadowFile -> shadowFile.deleteIfExists() }
+                if (stdErr.isNotEmpty()) {
+                    thisLogger().warn("mypy wrote to stderr: $stdErr")
+                }
+            }.catch(handleScanException(project, { executor.commandLine }, stdErr, MypyIncompleteConfigurationNotifier.getInstance(project), silent = true))
         return cs.future {
             flow.fold(mutableMapOf<VirtualFile, MutableList<MypyMessage>>()) { acc, (k, v) ->
                 acc.getOrPut(k) { mutableListOf() }.add(v)
                 acc
             }.mapValues { (_, v) -> v.toList() }
         }.get()
-    }
-
-    private fun findFile(path: Path): VirtualFile? {
-        return if (ApplicationManager.getApplication().isUnitTestMode) {
-            @Suppress("UnstableApiUsage")
-            TempFileSystem.getInstance().findFileByNioFile(path)
-        } else {
-            VfsUtil.findFile(path, false)
-        }
     }
 
     private fun copyTempFrom(file: VirtualFile): Path {

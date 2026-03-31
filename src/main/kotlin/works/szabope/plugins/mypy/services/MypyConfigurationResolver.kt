@@ -9,14 +9,15 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.jetbrains.python.sdk.pythonSdk
-import works.szabope.plugins.common.services.ImmutableSettingsData
+import works.szabope.plugins.common.services.ToolExecutorConfiguration
+import works.szabope.plugins.common.services.ToolSettingsInvalidException
 import kotlin.io.path.Path
 import kotlin.io.path.exists
 import kotlin.io.path.isExecutable
 
 class MypyConfigurationResolver(private val project: Project) {
 
-    fun resolveForFile(file: VirtualFile): Result<ImmutableSettingsData> {
+    fun resolveForFile(file: VirtualFile): Result<ToolExecutorConfiguration> {
         val module = ModuleUtilCore.findModuleForFile(file, project)
         if (module == null) {
             thisLogger().debug("[mypy-multi-module] No module found for ${file.path}, using project fallback")
@@ -25,7 +26,7 @@ class MypyConfigurationResolver(private val project: Project) {
         return resolveForModule(module)
     }
 
-    fun resolveForModule(module: Module): Result<ImmutableSettingsData> {
+    fun resolveForModule(module: Module): Result<ToolExecutorConfiguration> {
         // 1. Explicit per-module settings take highest priority
         val moduleConfig = MypyModuleSettings.getInstance(project).getModuleConfig(module.name)
         if (moduleConfig != null && moduleConfig.enabled) {
@@ -48,7 +49,7 @@ class MypyConfigurationResolver(private val project: Project) {
             val projectSettings = MypySettings.getInstance(project)
             thisLogger().debug("[mypy-multi-module] Module '${module.name}': auto-detected mypy=$mypyPath, workDir=$workDir, sdk=${moduleSdk.name}")
             return Result.success(
-                MypyExecutorConfiguration(
+                ToolExecutorConfiguration(
                     executablePath = mypyPath,
                     useProjectSdk = false,
                     configFilePath = "",
@@ -68,23 +69,23 @@ class MypyConfigurationResolver(private val project: Project) {
     private fun buildFromModuleConfig(
         module: Module,
         moduleConfig: MypyModuleSettings.ModuleConfig
-    ): Result<ImmutableSettingsData> {
+    ): Result<ToolExecutorConfiguration> {
         val projectSettings = MypySettings.getInstance(project)
 
         val executable = moduleConfig.mypyExecutable?.trim()?.takeIf { it.isNotBlank() }
             ?: module.pythonSdk?.let { findMypyInSdk(it) }
             ?: return Result.failure(
-                MypySettingsInvalid("Mypy executable not found for module '${module.name}'")
+                ToolSettingsInvalidException("Mypy executable not found for module '${module.name}'")
             )
 
         val workDir = moduleConfig.workingDirectory?.trim()?.takeIf { it.isNotBlank() }
             ?: guessModuleContentRoot(module)
             ?: return Result.failure(
-                MypySettingsInvalid("Working directory not found for module '${module.name}'")
+                ToolSettingsInvalidException("Working directory not found for module '${module.name}'")
             )
 
         return Result.success(
-            MypyExecutorConfiguration(
+            ToolExecutorConfiguration(
                 executablePath = executable,
                 useProjectSdk = false,
                 configFilePath = moduleConfig.configFilePath?.trim() ?: "",
@@ -99,12 +100,11 @@ class MypyConfigurationResolver(private val project: Project) {
 
     fun groupByConfiguration(
         files: Collection<VirtualFile>
-    ): Map<MypyExecutorConfiguration, List<VirtualFile>> {
-        val result = mutableMapOf<MypyExecutorConfiguration, MutableList<VirtualFile>>()
+    ): Map<ToolExecutorConfiguration, List<VirtualFile>> {
+        val result = mutableMapOf<ToolExecutorConfiguration, MutableList<VirtualFile>>()
         for (file in files) {
             val config = resolveForFile(file).getOrNull() ?: continue
-            val key = config as MypyExecutorConfiguration
-            result.getOrPut(key) { mutableListOf() }.add(file)
+            result.getOrPut(config) { mutableListOf() }.add(file)
         }
         return result
     }
@@ -113,7 +113,7 @@ class MypyConfigurationResolver(private val project: Project) {
         return files.any { resolveForFile(it).isSuccess }
     }
 
-    private fun projectFallback(): Result<ImmutableSettingsData> {
+    private fun projectFallback(): Result<ToolExecutorConfiguration> {
         return MypySettings.getInstance(project).getValidConfiguration()
     }
 
