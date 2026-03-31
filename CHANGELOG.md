@@ -1,6 +1,38 @@
-# Mypy Pycharm Plugin Changelog
+# Mypy Pycharm Plugin Changelog (Multi-Module Fork)
 
 ## [Unreleased]
+
+## [3.1.0] - 2026-03-31
+
+### Merged upstream v2.2.2
+
+Synced with upstream [szabope/mypy-pycharm-plugin](https://github.com/szabope/mypy-pycharm-plugin) v2.2.2, bringing in:
+- PyCharm 2025.3.1+ (261.x) support
+- Code lifted to common `pycharm-plugin-base` library
+- Fix handling non-JSON output printed to stdout
+- Silence failures when scan is run by annotator
+- Show executed command line in error dialogs
+- Fix MypyMessage hint field parsing (#158)
+- Various refactoring and cleanup
+
+### Multi-module fixes
+
+- Fix scan button disabled when project-level settings are invalid but per-module settings are valid
+- Fix annotations not appearing for files with valid module config when project config is invalid
+- Override `ScanAction.update()` to use per-module validation via `MypyConfigurationResolver`
+- Override `ScanAction.actionPerformed()` to bypass project-level `getValidConfiguration()` gate
+- Override `MypyAnnotator.doAnnotate()` to bypass project-level validation gate
+- Replace `MypyExecutorConfiguration` with upstream's `ToolExecutorConfiguration` data class
+- Replace `MypySettingsInvalid` with upstream's `ToolSettingsInvalidException`
+- Adapt `MypyConfigurationResolver` to new base class types (`ImmutableSettingsData` -> `ToolExecutorConfiguration`)
+
+## [3.0.0] - 2026-03-31
+
+- Add per-module mypy configuration support (auto-detection from module SDK + explicit settings UI)
+- Add `MypyConfigurationResolver` for per-module config resolution
+- Add `MypyModuleSettings` for persisting per-module overrides
+- Add `MypyModuleConfigurable` settings UI under Settings > Tools > Mypy > Module Settings
+- Change plugin ID to `works.szabope.mypy.multi-module` to avoid marketplace conflicts
 
 ## [2.2.1] - 2026-03-28
 

@@ -31,9 +31,19 @@ For cases where auto-detection isn't enough, a **Module Settings** page is avail
 - Custom working directory
 - Exclude non-project files toggle
 
+### Key Design Decision: Bypassing Base Class Validation Gates
+
+The upstream plugin uses `AbstractScanAction` and `ToolAnnotator` base classes from `pycharm-plugin-base`. Both gate scanning behind project-level validation (`getValidConfiguration()`, `isToolApplicable()`) that has no module awareness. This fork overrides:
+
+- **`ScanAction.update()`** — uses `MypyConfigurationResolver.hasAnyValidConfiguration()` instead of project-level `isToolApplicable()` to enable the scan button when any target has a valid module config
+- **`ScanAction.actionPerformed()`** — groups targets by per-module config via the resolver, bypassing the base class's single project-level config gate
+- **`MypyAnnotator.doAnnotate()`** — resolves config per-file via the resolver, bypassing the base class's project-level gate
+
+Without these overrides, the scan button would be disabled and annotations would not appear whenever project-level mypy settings are invalid, even if per-module settings are perfectly configured.
+
 ### Key Design Decision: `useProjectSdk = false`
 
-The plugin depends on a closed-source base library (`works.szabope.plugins:common`) whose `ToolExecutor` internally uses `project.pythonSdk` when `useProjectSdk = true`. Since we can't modify the base library, all module-specific configurations set `useProjectSdk = false` and pass the explicit mypy executable path resolved from the module's SDK. The base executor then runs that binary directly.
+The plugin depends on a base library (`works.szabope.plugins:common`) whose `ToolExecutor` internally uses `project.pythonSdk` when `useProjectSdk = true`. Since we can't modify the base library, all module-specific configurations set `useProjectSdk = false` and pass the explicit mypy executable path resolved from the module's SDK. The base executor then runs that binary directly.
 
 ## Changed Files
 
@@ -49,8 +59,8 @@ The plugin depends on a closed-source base library (`works.szabope.plugins:commo
 
 | File | Change |
 |------|--------|
-| `annotator/MypyAnnotator.kt` | `scan()` resolves per-module config via resolver |
-| `action/ScanAction.kt` | Groups targets by config, runs separate scans per module |
+| `annotator/MypyAnnotator.kt` | Overrides `doAnnotate()` and `scan()` to resolve per-module config via resolver |
+| `action/ScanAction.kt` | Overrides `update()` and `actionPerformed()` to use per-module validation and grouping |
 | `META-INF/plugin.xml` | Changed plugin ID/name to avoid marketplace update conflicts |
 | `META-INF/works.szabope.mypy-PythonCore.xml` | Registered module configurable |
 | `messages/MypyBundle.properties` | Added module settings UI labels |
@@ -58,11 +68,9 @@ The plugin depends on a closed-source base library (`works.szabope.plugins:commo
 
 ## Building
 
-Requires a GitHub PAT with `read:packages` scope for the base library dependency:
+Requires JDK 21. No GitHub credentials are needed — the base library is pulled via git include.
 
 ```bash
-export GPR_USERNAME=your-github-username
-export GPR_TOKEN=ghp_your_token
 export JAVA_HOME=/path/to/jdk21
 ./gradlew buildPlugin
 ```

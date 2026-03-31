@@ -9,6 +9,7 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.jetbrains.python.sdk.pythonSdk
+import kotlinx.coroutines.runBlocking
 import works.szabope.plugins.common.services.ToolExecutorConfiguration
 import works.szabope.plugins.common.services.ToolSettingsInvalidException
 import kotlin.io.path.Path
@@ -114,7 +115,7 @@ class MypyConfigurationResolver(private val project: Project) {
     }
 
     private fun projectFallback(): Result<ToolExecutorConfiguration> {
-        return MypySettings.getInstance(project).getValidConfiguration()
+        return runBlocking { MypySettings.getInstance(project).getValidConfiguration() }
     }
 
     private fun guessModuleContentRoot(module: Module): String? {

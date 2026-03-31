@@ -13,13 +13,17 @@ class MypyAnnotator : ToolAnnotator<MypyMessage>() {
 
     override fun getSettings(project: Project) = MypySettings.getInstance(project)
 
-    override fun scan(info: AnnotatorInfo, configuration: ToolExecutorConfiguration): List<MypyMessage> {
-        val resolvedConfig = MypyConfigurationResolver(info.project)
+    // Override doAnnotate() to bypass the base class's project-level getValidConfiguration() gate.
+    // The base returns empty when project settings are invalid, even if the file's module has valid config.
+    override fun doAnnotate(info: AnnotatorInfo): List<MypyMessage> {
+        val configuration = MypyConfigurationResolver(info.project)
             .resolveForFile(info.file)
-            .getOrElse { configuration }
-        return SyncScanService.getInstance(info.project)
-            .scan(listOf(info.file), resolvedConfig)[info.file] ?: emptyList()
+            .getOrNull() ?: return emptyList()
+        return scan(info, configuration)
     }
+
+    override fun scan(info: AnnotatorInfo, configuration: ToolExecutorConfiguration) =
+        SyncScanService.getInstance(info.project).scan(listOf(info.file), configuration)[info.file] ?: emptyList()
 
     override fun createIntention(message: MypyMessage) = MypyIgnoreIntention(message)
 }
