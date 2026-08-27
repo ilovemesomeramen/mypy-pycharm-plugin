@@ -61,7 +61,7 @@ open class ScanAction : AbstractScanAction() {
             val resolver = MypyConfigurationResolver(project)
             val configGroups = resolver.groupByConfiguration(targets)
             if (configGroups.isEmpty()) {
-                val canInstall = getPackageManagementService(project).canInstallSync()
+                val canInstall = getPackageManagementService(project).canInstallNow()
                 getIncompleteConfigurationNotifier(project).showWarningBubble(canInstall)
                 return@launch
             }

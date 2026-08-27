@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-08-27
+
+### Merged upstream v2.2.4
+
+Synced with upstream [szabope/mypy-pycharm-plugin](https://github.com/szabope/mypy-pycharm-plugin) v2.2.4, bringing in:
+- PyCharm 2026.2 (262.x) support
+- Determine SDK based on module instead of project
+- Build tooling updates: Gradle 9.0, Kotlin 2.4.10, IntelliJ Platform Gradle Plugin 2.18.1, JVM toolchain 25
+- Removed Kover coverage plugin
+
+## [3.1.1] - 2026-03-31
+
+- Fix annotator not showing highlights due to relative path mismatch between mypy output and canonical file paths
+
 ## [3.1.0] - 2026-03-31
 
 ### Merged upstream v2.2.2
@@ -33,6 +47,21 @@ Synced with upstream [szabope/mypy-pycharm-plugin](https://github.com/szabope/my
 - Add `MypyModuleSettings` for persisting per-module overrides
 - Add `MypyModuleConfigurable` settings UI under Settings > Tools > Mypy > Module Settings
 - Change plugin ID to `works.szabope.mypy.multi-module` to avoid marketplace conflicts
+
+## [2.2.4] - 2026-07-23
+
+- Changelog update - `v2.2.3` by @github-actions[bot] in https://github.com/szabope/mypy-pycharm-plugin/pull/170
+- Support 2026.2 by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/173 Resolves [Could not determine the dependencies of task ':koverGenerateArtifactJvm'.](https://github.com/szabope/mypy-pycharm-plugin/issues/172)
+
+## [2.2.3] - 2026-04-06
+
+- Changelog update - `v2.2.2` by @github-actions[bot] in https://github.com/szabope/mypy-pycharm-plugin/pull/167
+- determine SDK based on module instead of project by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/169
+
+## [2.2.2] - 2026-03-29
+
+- Changelog update - `v2.2.1` by @github-actions[bot] in https://github.com/szabope/mypy-pycharm-plugin/pull/165
+- Update common to support Idea by @szabope in https://github.com/szabope/mypy-pycharm-plugin/pull/166
 
 ## [2.2.1] - 2026-03-28
 
@@ -292,7 +321,10 @@ Fix Naming collisions with old plugin
      - Severity filters: **removed**
      - Rescan: **added** - runs mypy scan on the latest target(s)
 
-[Unreleased]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.2.1...HEAD
+[Unreleased]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.2.4...HEAD
+[2.2.4]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.2.3...v2.2.4
+[2.2.3]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.2.2...v2.2.3
+[2.2.2]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.1.8...v2.2.0
 [2.1.8]: https://github.com/szabope/mypy-pycharm-plugin/compare/v2.1.7...v2.1.8
