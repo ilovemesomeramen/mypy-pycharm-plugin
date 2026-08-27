@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-08-27
+
+### Fixed
+
+- Scan action `update()` no longer probes the filesystem or blocks on project settings validation (could stall the UI and repeatedly query the package manager in large projects); it now uses a cheap per-module applicability check
+- Scan action is disabled again for non-Python targets, restoring upstream's file type eligibility check that the fork's override had dropped
+- Disabling per-module settings no longer deletes the stored configuration; re-enabling restores the previous values
+- Module Settings page no longer stays "modified" forever after saving values with surrounding whitespace (values are now trimmed on apply)
+- Per-module configs now follow module renames instead of being silently orphaned
+
+### Changed
+
+- Scan now reports targets that were skipped because no valid mypy configuration resolved for them (previously they were dropped silently)
+- Module Settings: the working directory field is empty by default and falls back to the module content root, instead of pre-filling the content root path
+- Module Settings page uses the standard `DialogPanel` reset mechanism instead of rebuilding the panel
+
+### Added
+
+- Test coverage for the multi-module resolver (config priority, project fallback, SDK auto-detection, target grouping), module settings persistence/rename migration, and scan action update gating
+
 ## [3.2.0] - 2026-08-27
 
 ### Merged upstream v2.2.4

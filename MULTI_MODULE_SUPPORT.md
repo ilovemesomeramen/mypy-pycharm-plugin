@@ -25,18 +25,20 @@ This only activates in multi-module projects. Single-module projects are complet
 
 For cases where auto-detection isn't enough, a **Module Settings** page is available under **Settings > Tools > Mypy > Module Settings**. Each module can be individually configured with:
 
-- Custom mypy executable path
-- Custom config file path
-- Custom arguments
-- Custom working directory
+- Custom mypy executable path (falls back to the executable detected in the module SDK)
+- Custom config file path (empty lets mypy discover its config from the working directory)
+- Custom arguments (empty inherits the project-level arguments)
+- Custom working directory (empty uses the module content root)
 - Exclude non-project files toggle
+
+Disabling a module's settings keeps the stored values, so re-enabling restores them. Configs follow module renames automatically; configs of removed modules are kept so that detaching and re-attaching a project preserves its configuration.
 
 ### Key Design Decision: Bypassing Base Class Validation Gates
 
 The upstream plugin uses `AbstractScanAction` and `ToolAnnotator` base classes from `pycharm-plugin-base`. Both gate scanning behind project-level validation (`getValidConfiguration()`, `isToolApplicable()`) that has no module awareness. This fork overrides:
 
-- **`ScanAction.update()`** — uses `MypyConfigurationResolver.hasAnyValidConfiguration()` instead of project-level `isToolApplicable()` to enable the scan button when any target has a valid module config
-- **`ScanAction.actionPerformed()`** — groups targets by per-module config via the resolver, bypassing the base class's single project-level config gate
+- **`ScanAction.update()`** — uses `MypyConfigurationResolver.hasAnyApplicableConfiguration()` instead of project-level `isToolApplicable()` to enable the scan button when any target has an applicable module config. This is deliberately a *cheap* check (no filesystem probes, no suspending validation) because `update()` runs on every action update cycle; it may be optimistic, and `actionPerformed()` surfaces a warning when actual resolution fails. Upstream's file type eligibility check (Python files and directories only) is preserved.
+- **`ScanAction.actionPerformed()`** — groups targets by per-module config via the resolver, bypassing the base class's single project-level config gate. Targets that no configuration resolves for are reported in a warning notification instead of being scanned.
 - **`MypyAnnotator.doAnnotate()`** — resolves config per-file via the resolver, bypassing the base class's project-level gate
 
 Without these overrides, the scan button would be disabled and annotations would not appear whenever project-level mypy settings are invalid, even if per-module settings are perfectly configured.
@@ -53,6 +55,7 @@ The plugin depends on a base library (`works.szabope.plugins:common`) whose `Too
 |------|---------|
 | `services/MypyConfigurationResolver.kt` | Resolves per-module mypy config (auto-detect + explicit settings) |
 | `services/MypyModuleSettings.kt` | Persists per-module setting overrides in `MypyPlugin.xml` |
+| `services/MypyModuleRenameListener.kt` | Migrates per-module configs when a module is renamed |
 | `configurable/MypyModuleConfigurable.kt` | Settings UI for per-module configuration |
 
 ### Modified Files
@@ -68,7 +71,7 @@ The plugin depends on a base library (`works.szabope.plugins:common`) whose `Too
 
 ## Building
 
-Requires JDK 21. No GitHub credentials are needed — the base library is pulled via git include.
+Requires a JDK 17+ to run Gradle (the JDK 25 compile toolchain is auto-provisioned). No GitHub credentials are needed — the base library is pulled via git include.
 
 ```bash
 export JAVA_HOME=/path/to/jdk21

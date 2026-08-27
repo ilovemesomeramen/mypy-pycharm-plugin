@@ -18,6 +18,12 @@ import kotlin.io.path.isExecutable
 
 class MypyConfigurationResolver(private val project: Project) {
 
+    /** Scan targets grouped by their resolved configuration, plus targets no configuration resolved for. */
+    data class TargetGroups(
+        val groups: Map<ToolExecutorConfiguration, List<VirtualFile>>,
+        val unresolved: List<VirtualFile>
+    )
+
     fun resolveForFile(file: VirtualFile): Result<ToolExecutorConfiguration> {
         val module = ModuleUtilCore.findModuleForFile(file, project)
         if (module == null) {
@@ -99,20 +105,47 @@ class MypyConfigurationResolver(private val project: Project) {
         )
     }
 
-    fun groupByConfiguration(
-        files: Collection<VirtualFile>
-    ): Map<ToolExecutorConfiguration, List<VirtualFile>> {
-        val result = mutableMapOf<ToolExecutorConfiguration, MutableList<VirtualFile>>()
+    fun groupByConfiguration(files: Collection<VirtualFile>): TargetGroups {
+        val groups = mutableMapOf<ToolExecutorConfiguration, MutableList<VirtualFile>>()
+        val unresolved = mutableListOf<VirtualFile>()
         for (file in files) {
-            val config = resolveForFile(file).getOrNull() ?: continue
-            result.getOrPut(config) { mutableListOf() }.add(file)
+            val config = resolveForFile(file).getOrNull()
+            if (config == null) {
+                unresolved.add(file)
+            } else {
+                groups.getOrPut(config) { mutableListOf() }.add(file)
+            }
         }
-        return result
+        return TargetGroups(groups, unresolved)
     }
 
-    fun hasAnyValidConfiguration(files: Collection<VirtualFile>): Boolean {
-        return files.any { resolveForFile(it).isSuccess }
+    /**
+     * Cheap applicability check for AnAction.update(). Mirrors the decision tree of [resolveForFile]
+     * without filesystem probes or suspending validation, both of which are too expensive for the
+     * action update cycle. May be optimistic: actionPerformed() surfaces a warning when actual
+     * resolution fails.
+     */
+    fun isApplicableForFile(file: VirtualFile): Boolean {
+        val module = ModuleUtilCore.findModuleForFile(file, project) ?: return isProjectApplicable()
+        return isApplicableForModule(module)
     }
+
+    fun hasAnyApplicableConfiguration(files: Collection<VirtualFile>): Boolean {
+        return files.any { isApplicableForFile(it) }
+    }
+
+    private fun isApplicableForModule(module: Module): Boolean {
+        val moduleConfig = MypyModuleSettings.getInstance(project).getModuleConfig(module.name)
+        if (moduleConfig != null && moduleConfig.enabled) {
+            return !moduleConfig.mypyExecutable.isNullOrBlank() || module.pythonSdk != null
+        }
+        if (module.pythonSdk != null && ModuleManager.getInstance(project).modules.size > 1) {
+            return true
+        }
+        return isProjectApplicable()
+    }
+
+    private fun isProjectApplicable() = MypySettings.getInstance(project).isToolApplicable()
 
     private fun projectFallback(): Result<ToolExecutorConfiguration> {
         return runBlocking { MypySettings.getInstance(project).getValidConfiguration() }

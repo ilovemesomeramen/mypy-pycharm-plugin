@@ -5,6 +5,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootManager
+import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.layout.ComponentPredicate
 import com.intellij.ui.dsl.builder.*
 import com.jetbrains.python.sdk.pythonSdk
@@ -15,7 +16,7 @@ import javax.swing.JComponent
 
 class MypyModuleConfigurable(private val project: Project) : Configurable {
 
-    private data class ModuleRow(
+    private class ModuleRow(
         val moduleName: String,
         var enabled: Boolean = false,
         var mypyExecutable: String = "",
@@ -24,22 +25,21 @@ class MypyModuleConfigurable(private val project: Project) : Configurable {
         var workingDirectory: String = "",
         var excludeNonProjectFiles: Boolean = true,
         val detectedExecutable: String? = null,
-        val moduleSdkName: String? = null
+        val moduleSdkName: String? = null,
+        val defaultWorkDir: String = ""
     )
 
     private val moduleRows = mutableListOf<ModuleRow>()
-    private var mainPanel: JComponent? = null
+    private var mainPanel: DialogPanel? = null
 
     override fun getDisplayName(): String = MypyBundle.message("mypy.configuration.module_settings.name")
 
     override fun createComponent(): JComponent {
-        loadFromSettings()
-        val component = buildPanel()
-        mainPanel = component
-        return component
+        createRows()
+        return buildPanel().also { mainPanel = it }
     }
 
-    private fun buildPanel(): JComponent = panel {
+    private fun buildPanel(): DialogPanel = panel {
         if (moduleRows.isEmpty()) {
             row {
                 label(MypyBundle.message("mypy.configuration.module_settings.no_modules"))
@@ -95,6 +95,10 @@ class MypyModuleConfigurable(private val project: Project) : Configurable {
                     ).bindText(
                         { row.workingDirectory },
                         { row.workingDirectory = it }
+                    ).comment(
+                        row.defaultWorkDir.takeIf { it.isNotBlank() }?.let {
+                            MypyBundle.message("mypy.configuration.module_settings.working_directory_detected", it)
+                        } ?: MypyBundle.message("mypy.configuration.module_settings.working_directory_comment")
                     ).align(AlignX.FILL)
                         .enabledIf(enabledPredicate)
                 }
@@ -109,84 +113,72 @@ class MypyModuleConfigurable(private val project: Project) : Configurable {
         }
     }
 
-    private fun loadFromSettings() {
+    private fun createRows() {
         moduleRows.clear()
-        val moduleSettings = MypyModuleSettings.getInstance(project)
         val modules = ModuleManager.getInstance(project).modules.sortedBy { it.name }
         for (module in modules) {
-            val config = moduleSettings.getModuleConfig(module.name)
             val moduleSdk = module.pythonSdk
-            val detectedExe = moduleSdk?.let { MypyConfigurationResolver.findMypyInSdk(it) }
-            val defaultWorkDir = ModuleRootManager.getInstance(module)
-                .contentRoots.firstOrNull()?.canonicalPath ?: ""
-            moduleRows.add(
-                ModuleRow(
-                    moduleName = module.name,
-                    enabled = config?.enabled ?: false,
-                    mypyExecutable = config?.mypyExecutable?.trim() ?: "",
-                    configFilePath = config?.configFilePath?.trim() ?: "",
-                    arguments = config?.arguments?.trim() ?: "",
-                    workingDirectory = config?.workingDirectory?.trim()?.takeIf { it.isNotBlank() }
-                        ?: defaultWorkDir,
-                    excludeNonProjectFiles = config?.excludeNonProjectFiles ?: true,
-                    detectedExecutable = detectedExe,
-                    moduleSdkName = moduleSdk?.name
-                )
+            val row = ModuleRow(
+                moduleName = module.name,
+                detectedExecutable = moduleSdk?.let { MypyConfigurationResolver.findMypyInSdk(it) },
+                moduleSdkName = moduleSdk?.name,
+                defaultWorkDir = ModuleRootManager.getInstance(module).contentRoots.firstOrNull()?.canonicalPath ?: ""
             )
+            row.refreshFromSettings()
+            moduleRows.add(row)
         }
+    }
+
+    private fun ModuleRow.refreshFromSettings() {
+        val config = MypyModuleSettings.getInstance(project).getModuleConfig(moduleName)
+        enabled = config?.enabled ?: false
+        mypyExecutable = config?.mypyExecutable ?: ""
+        configFilePath = config?.configFilePath ?: ""
+        arguments = config?.arguments ?: ""
+        workingDirectory = config?.workingDirectory ?: ""
+        excludeNonProjectFiles = config?.excludeNonProjectFiles ?: true
     }
 
     override fun isModified(): Boolean {
         val moduleSettings = MypyModuleSettings.getInstance(project)
-        for (row in moduleRows) {
+        return moduleRows.any { row ->
             val config = moduleSettings.getModuleConfig(row.moduleName)
             if (config == null) {
-                if (row.enabled) return true
+                row.enabled
             } else {
-                if (row.enabled != config.enabled) return true
-                if (row.enabled) {
-                    if ((row.mypyExecutable) != (config.mypyExecutable?.trim() ?: "")) return true
-                    if ((row.configFilePath) != (config.configFilePath?.trim() ?: "")) return true
-                    if ((row.arguments) != (config.arguments?.trim() ?: "")) return true
-                    if ((row.workingDirectory) != (config.workingDirectory?.trim() ?: "")) return true
-                    if (row.excludeNonProjectFiles != config.excludeNonProjectFiles) return true
-                }
+                row.enabled != config.enabled
+                        || row.mypyExecutable.trim() != (config.mypyExecutable ?: "")
+                        || row.configFilePath.trim() != (config.configFilePath ?: "")
+                        || row.arguments.trim() != (config.arguments ?: "")
+                        || row.workingDirectory.trim() != (config.workingDirectory ?: "")
+                        || row.excludeNonProjectFiles != config.excludeNonProjectFiles
             }
         }
-        return false
     }
 
     override fun apply() {
         val moduleSettings = MypyModuleSettings.getInstance(project)
         for (row in moduleRows) {
-            if (row.enabled) {
-                val config = moduleSettings.getOrCreateModuleConfig(row.moduleName)
-                config.enabled = true
-                config.mypyExecutable = row.mypyExecutable.ifBlank { null }
-                config.configFilePath = row.configFilePath.ifBlank { null }
-                config.arguments = row.arguments.ifBlank { null }
-                config.workingDirectory = row.workingDirectory.ifBlank { null }
-                config.excludeNonProjectFiles = row.excludeNonProjectFiles
-            } else {
-                moduleSettings.removeModuleConfig(row.moduleName)
-            }
+            // Never create a config for a module that was never enabled; keep existing configs
+            // (including their field values) when disabled, so re-enabling restores them.
+            if (!row.enabled && moduleSettings.getModuleConfig(row.moduleName) == null) continue
+            val config = moduleSettings.getOrCreateModuleConfig(row.moduleName)
+            config.enabled = row.enabled
+            config.mypyExecutable = row.mypyExecutable.trim().ifBlank { null }
+            config.configFilePath = row.configFilePath.trim().ifBlank { null }
+            config.arguments = row.arguments.trim().ifBlank { null }
+            config.workingDirectory = row.workingDirectory.trim().ifBlank { null }
+            config.excludeNonProjectFiles = row.excludeNonProjectFiles
         }
     }
 
     override fun reset() {
-        loadFromSettings()
-        mainPanel?.let {
-            val parent = it.parent
-            if (parent != null) {
-                val idx = parent.components.indexOf(it)
-                parent.remove(it)
-                val newPanel = buildPanel()
-                mainPanel = newPanel
-                parent.add(newPanel, idx)
-                parent.revalidate()
-                parent.repaint()
-            }
-        }
+        moduleRows.forEach { it.refreshFromSettings() }
+        mainPanel?.reset()
+    }
+
+    override fun disposeUIResources() {
+        mainPanel = null
     }
 
     companion object {

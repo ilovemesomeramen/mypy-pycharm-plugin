@@ -6,4 +6,9 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.lang</depends>
     <depends optional="true" config-file="works.szabope.mypy-PythonCore.xml">com.intellij.modules.python</depends>
+
+    <projectListeners>
+        <listener class="works.szabope.plugins.mypy.services.MypyModuleRenameListener"
+                  topic="com.intellij.openapi.project.ModuleListener"/>
+    </projectListeners>
 </idea-plugin>

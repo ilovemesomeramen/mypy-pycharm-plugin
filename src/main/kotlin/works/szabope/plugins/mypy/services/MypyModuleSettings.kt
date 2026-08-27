@@ -38,6 +38,12 @@ class MypyModuleSettings(internal val project: Project) :
         state.moduleConfigs.removeAll { it.moduleName == moduleName }
     }
 
+    fun renameModuleConfig(oldModuleName: String, newModuleName: String) {
+        val config = getModuleConfig(oldModuleName) ?: return
+        removeModuleConfig(newModuleName)
+        config.moduleName = newModuleName
+    }
+
     @TestOnly
     fun reset() {
         loadState(MypyModuleSettingsState())
